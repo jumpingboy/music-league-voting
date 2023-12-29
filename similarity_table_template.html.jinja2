@@ -25,27 +25,99 @@
 </head>
 
 <body>
-    {% for member_name, scores_array in similarity_scores.items() %}
-    <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
-        <h2 style="margin-bottom: 10px; text-align: center;">{{ member_name }}</h2>
-        <table>
-            <thead>
-            </thead>
-            <tbody>
-                {% for other_member in scores_array %}
-                {% set score = other_member["score"] %}
-                {% set range = max - min %}
-                {% set hue = ((score - min) / range * 120) | round(2) %}
+    <div class="summary-container" style="display: inline-block;">
+        <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
+            <h2 style="margin-bottom: 10px; text-align: center;">Hot n Heavy</h2>
+            <table style="margin: 0 auto;">
+                <thead>
+                </thead>
 
-                <tr style="background-color: hsl({{ hue }}, 100%, 66%);">
-                    <td class="name" style="padding: 4px 6px;">{{ other_member["name"] }}</td>
-                    <td class="score" style="padding: 4px 6px; text-align: right;">{{ score }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                <tbody>
+                    {% for relationship in top_five %}
+                    {% set score = relationship["score"] %}
+                    {% set range = overall_max - overall_min %}
+                    {% set hue = ((score - overall_min) / range * 120) | round(2) %}
+
+                    <tr style="background-color: hsl({{ hue }}, 100%, 66%);">
+                        <td class="name" style="padding: 4px 6px;">{{ relationship["member_a"] }}</td>
+                        <td class="name" style="padding: 4px 6px;">{{ relationship["member_b"] }}</td>
+                        <td class="score" style="padding: 4px 6px; text-align: right;">{{ score }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
+            <h2 style="margin-bottom: 10px; text-align: center;">Different Planets</h2>
+            <table style="margin: 0 auto;">
+                <thead>
+                </thead>
+
+                <tbody>
+                    {% for relationship in bottom_five %}
+                    {% set score = relationship["score"] %}
+                    {% set range = overall_max - overall_min %}
+                    {% set hue = ((score - overall_min) / range * 120) | round(2) %}
+
+                    <tr style="background-color: hsl({{ hue }}, 100%, 66%);">
+                        <td class="name" style="padding: 4px 6px;">{{ relationship["member_a"] }}</td>
+                        <td class="name" style="padding: 4px 6px;">{{ relationship["member_b"] }}</td>
+                        <td class="score" style="padding: 4px 6px; text-align: right;">{{ score }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
-    {% endfor %}
+    <div style="display: inline-block;">
+        <h1 style="margin-bottom: 10px; text-align: center;">Cumulative</h1>
+        {% for member_name, scores_array in similarity_scores.items() %}
+        <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
+            <h2 style="margin-bottom: 10px; text-align: center;">{{ member_name }}</h2>
+            <table>
+                <thead>
+                </thead>
+                <tbody>
+                    {% for other_member in scores_array %}
+                    {% set score = other_member["score"] %}
+                    {% set range = overall_max - overall_min %}
+                    {% set hue = ((score - overall_min) / range * 120) | round(2) %}
+
+                    <tr style="background-color: hsl({{ hue }}, 100%, 66%);">
+                        <td class="name" style="padding: 4px 6px;">{{ other_member["name"] }}</td>
+                        <td class="score" style="padding: 4px 6px; text-align: right;">{{ score }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+    <div style="display: inline-block;">
+        <h1 style="margin-bottom: 10px; text-align: center;">Round {{ this_week_number }} Alone</h1>
+        {% for member_name, scores_array in this_week.items() %}
+        <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
+            <h2 style="margin-bottom: 10px; text-align: center;">{{ member_name }}</h2>
+            <table>
+                <thead>
+                </thead>
+                <tbody>
+                    {% for other_member in scores_array %}
+                    {% set score = other_member["score"] %}
+                    {% set range = this_week_max - this_week_min %}
+                    {% set hue = ((score - this_week_min) / range * 120) | round(2) %}
+
+                    <tr style="background-color: hsl({{ hue }}, 100%, 66%);">
+                        <td class="name" style="padding: 4px 6px;">{{ other_member["name"] }}</td>
+                        <td class="score" style="padding: 4px 6px; text-align: right;">{{ score }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+
 </body>
 
 </html>

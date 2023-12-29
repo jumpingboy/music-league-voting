@@ -5,13 +5,14 @@ import pdb
 import numpy as np
 from jinja2 import Template
 import os
+import os
+import json
 
-def calc_similarity_scores():
+
+
+def calc_similarity_scores(results):
     with open('members.json') as f:
         members = json.load(f)
-
-    with open('results/round_1.json') as f:
-        results = json.load(f)
 
     scores = {}
     member_ids = [member['user']['id'] for member in members]
@@ -36,7 +37,7 @@ def calc_similarity_scores():
 
             this_member_scores[other_member_id] = []
 
-            for song in results['standings']:
+            for song in results:
                 votes_by_id = {vote['voterId']: vote['weight'] for vote in song['votes']}
                 song_match = {}
                 submitter_id = song['submission']['submitterId']
@@ -181,14 +182,82 @@ def calc_similarity_scores():
 
     return sorted_similarity_scores_names
 
-sorted_similarity_scores_names = calc_similarity_scores()
+
+def votes_by_round_array():
+    result_files = os.listdir('results')
+
+    result_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+
+    votes_by_round = []
+    for file in result_files:
+        with open(os.path.join('results', file)) as f:
+            results = json.load(f)['standings']
+            votes_by_round.append(results)
+
+    return votes_by_round
+
+
+def cumulative_and_last_round_scores():
+    cumulative_results = sum(votes_by_round_array(), [])
+    last_round_results = votes_by_round_array()[-1]
+
+    return calc_similarity_scores(cumulative_results), calc_similarity_scores(last_round_results)
+
+
+def cumulative_scores_by_round_array():
+    cumulative_results_by_round = []
+    for round_results in votes_by_round_array():
+        if not cumulative_results_by_round:
+            cumulative_results_by_round.append(round_results)
+        else:
+            cumulative_results_by_round.append(cumulative_results_by_round[-1] + round_results)
+
+    return [calc_similarity_scores(results_through_round) for results_through_round in cumulative_results_by_round]
+
+overall_scores, this_round_scores = cumulative_and_last_round_scores()
+
+
+def top_and_bottom(similarity_scores):
+    all = []
+    done_members = []
+
+    for member, scores in similarity_scores.items():
+        for score in scores:
+            if score['name'] in done_members:
+                continue
+            all.append({'member_a':member, 'member_b': score['name'], 'score': float(score['score'])})
+        done_members.append(member)
+    all.sort(key=lambda x: x['score'], reverse=True)
+
+    top_five = all[:5]
+    bottom_five_worst_first = all[-5:]
+    bottom_five_worst_first.sort(key=lambda x: x['score'])
+    return top_five, bottom_five_worst_first
+
+top_five, bottom_five = top_and_bottom(overall_scores)
+
+def max_min(results):
+    max_score = float(max(score['score'] for scores in results.values() for score in scores))
+    min_score = float(min(score['score'] for scores in results.values() for score in scores))
+    return max_score, min_score
+
+overall_max_score, overall_min_score = max_min(overall_scores)
+this_round_max, this_round_min = max_min(this_round_scores)
 
 with open('similarity_table_template.html.jinja2') as file_:
     template = Template(file_.read())
 
-max_score = max(score['score'] for scores in sorted_similarity_scores_names.values() for score in scores)
-min_score = min(score['score'] for scores in sorted_similarity_scores_names.values() for score in scores)
-rendered_template = template.render(similarity_scores=sorted_similarity_scores_names, max=max_score, min=min_score)
+rendered_template = template.render(
+    similarity_scores=overall_scores,
+    overall_max=overall_max_score,
+    overall_min=overall_min_score,
+    this_week_max = this_round_max,
+    this_week_min = this_round_min,
+    top_five = top_five,
+    bottom_five = bottom_five,
+    this_week=this_round_scores,
+    this_week_number = 3
+ )
 
 
 with open('similarity_table.html', 'w+') as file_:
