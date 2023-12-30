@@ -1,4 +1,5 @@
 import json
+import time
 from functools import partial
 import pdb
 
@@ -6,7 +7,7 @@ import pdb
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 from similarity import cumulative_scores_by_round_array
 
@@ -51,7 +52,7 @@ for scores_through_round in cumulative_scores_by_round:
         pos_by_round.append(positions(scores_through_round, start_pos=pos_by_round[-1]))
 
 
-def show_animation(pos_by_round):
+def make_animation(pos_by_round):
     fig, ax = plt.subplots(1, figsize=(15, 10))
 
     all_values = []
@@ -63,8 +64,8 @@ def show_animation(pos_by_round):
     max_y = max(y for _, y in all_values)
     range_x = max_x - min_x
     range_y = max_y - min_y
-    ax.set_xlim(min_x - range_x * 0.05, max_x + range_x * 0.05)
-    ax.set_ylim(min_y - range_y * 0.05, max_y + range_y * 0.05)
+    ax.set_xlim(min_x - range_x * 0.08, max_x + range_x * 0.08)
+    ax.set_ylim(min_y - range_y * 0.08, max_y + range_y * 0.08)
 
     x_array = []
     y_array = []
@@ -74,16 +75,16 @@ def show_animation(pos_by_round):
     for node_name, (x, y) in pos_by_round[0].items():
         x_array.append(x)
         y_array.append(y)
-        text_artists[node_name] = ax.text(x, y, node_name, color='black', fontsize=12, ha='center', va='center')
+        text_artists[node_name] = ax.text(x, y, node_name, color='black', fontsize=24, ha='center', va='center')
 
     node_color = '#6fd7f8'
     ax.axis('off')
-    sc = ax.scatter(x_array, y_array, c=node_color, label=node_name, s=1800)
-    text_artists['title_artist'] = ax.set_title(f'After Round 1')
+    sc = ax.scatter(x_array, y_array, c=node_color, label=node_name, s=6000)
+    text_artists['title_artist'] = ax.set_title(f'After Round 1', fontsize=48)
     fig.tight_layout()
     
-    animation_frames_per_round = 50
-    freeze_frames_per_round = 20
+    animation_frames_per_round = 80
+    freeze_frames_per_round = 40
     frames_per_round = animation_frames_per_round + freeze_frames_per_round
 
     def update_positions(frame_num):
@@ -113,6 +114,14 @@ def show_animation(pos_by_round):
 
     animation = FuncAnimation(fig, update_positions, frames=total_frames, interval=50, repeat=True)
 
-    plt.show()
+    return animation
 
-show_animation(pos_by_round)
+def save_animation(anim):
+    ffWriter = FFMpegWriter(fps=24)
+    timestring = int(time.time())
+    anim.save(f'output/out-{timestring}.mp4', writer=ffWriter)
+
+anim = make_animation(pos_by_round)
+# save_animation(anim)
+plt.show()
+
