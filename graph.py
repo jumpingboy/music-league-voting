@@ -1,7 +1,7 @@
 import json
 import time
 import pdb
-
+import os
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -37,7 +37,7 @@ def graph(positions, round_num):
         ax.text(x, y, node_name, color='black', fontsize=12, ha='center', va='center')
 
     ax.axis('off')
-    ax.set_title(f'Round {round_num}')  # Set the title of the plot
+    ax.set_title(f'Round {round_num}')
 
     plt.show()
     return positions
@@ -111,7 +111,12 @@ def make_animation(pos_by_round):
 def save_animation(anim):
     ffWriter = FFMpegWriter(fps=24)
     timestring = int(time.time())
-    anim.save(f'output/out-{timestring}.mp4', writer=ffWriter)
+    
+    output_dir = 'output'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    anim.save(f'{output_dir}/out-{timestring}.mp4', writer=ffWriter)
 
 
 if __name__ == '__main__':

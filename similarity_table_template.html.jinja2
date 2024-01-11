@@ -3,7 +3,8 @@
 
 <head>
     <title>Similarity Table</title>
-    <!-- Styles added as inline styles so they work in gmail -->
+    <!-- Styles are actually implemented as inline styles so they work when pasting the html output in gmail -->
+    <!-- This style tag is just here as a more easily readable reference -->
     <!-- <style>
         div {
             float: left;
@@ -70,31 +71,7 @@
         </div>
     </div>
     <div style="display: inline-block;">
-        <h1 style="margin-bottom: 10px; text-align: center;">Cumulative</h1>
-        {% for member_name, scores_array in similarity_scores.items() %}
-        <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
-            <h2 style="margin-bottom: 10px; text-align: center;">{{ member_name }}</h2>
-            <table>
-                <thead>
-                </thead>
-                <tbody>
-                    {% for other_member in scores_array %}
-                    {% set score = other_member["score"] %}
-                    {% set range = overall_max - overall_min %}
-                    {% set hue = ((score - overall_min) / range * 120) | round(2) %}
-
-                    <tr style="background-color: hsl({{ hue }}, 100%, 66%);">
-                        <td class="name" style="padding: 4px 6px;">{{ other_member["name"] }}</td>
-                        <td class="score" style="padding: 4px 6px; text-align: right;">{{ score }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endfor %}
-    </div>
-    <div style="display: inline-block;">
-        <h1 style="margin-bottom: 10px; text-align: center;">Round {{ this_week_number }} Alone</h1>
+        <h1 style="margin-bottom: 10px; text-align: center;">Round {{ this_week_number }}{% if this_week_number > 1 %} Alone{% endif %}</h1>
         {% for member_name, scores_array in this_week.items() %}
         <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
             <h2 style="margin-bottom: 10px; text-align: center;">{{ member_name }}</h2>
@@ -117,6 +94,32 @@
         </div>
         {% endfor %}
     </div>
+    {% if this_week_number > 1 %}
+        <div style="display: inline-block;">
+            <h1 style="margin-bottom: 10px; text-align: center;">All Time</h1>
+            {% for member_name, scores_array in similarity_scores.items() %}
+            <div style="float: left; margin-left: 20px; margin-bottom: 10px;">
+                <h2 style="margin-bottom: 10px; text-align: center;">{{ member_name }}</h2>
+                <table>
+                    <thead>
+                    </thead>
+                    <tbody>
+                        {% for other_member in scores_array %}
+                        {% set score = other_member["score"] %}
+                        {% set range = overall_max - overall_min %}
+                        {% set hue = ((score - overall_min) / range * 120) | round(2) %}
+
+                        <tr style="background-color: hsl({{ hue }}, 100%, 66%);">
+                            <td class="name" style="padding: 4px 6px;">{{ other_member["name"] }}</td>
+                            <td class="score" style="padding: 4px 6px; text-align: right;">{{ score }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
 
 </body>
 
