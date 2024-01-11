@@ -9,7 +9,6 @@ import os
 import json
 
 
-
 def calc_similarity_scores(results):
     with open('members.json') as f:
         members = json.load(f)
@@ -183,15 +182,72 @@ def calc_similarity_scores(results):
     return sorted_similarity_scores_names
 
 
-def votes_by_round_array():
+def votes_by_round_array(scale_down_round_1=False):
     result_files = os.listdir('results')
 
     result_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+
 
     votes_by_round = []
     for file in result_files:
         with open(os.path.join('results', file)) as f:
             results = json.load(f)['standings']
+            if scale_down_round_1 and file == 'round_1.json':
+                voters = {}
+                for song in results:
+                    # print(f"https://open.spotify.com/{song['submission']['spotifyUri'].replace('spotify:','').replace(':','/')}")
+                    for vote in song['votes']:
+                        if vote['weight'] > 0:
+                            if vote['voterId'] in [
+                                    '269304c187a644419153c0df978977f1',
+                                    'f3f58fb8ad33471b87c8e07e1756bbe6',
+                                    'd3a42ba3861e4fc6a1dc62b602e61aac',
+                                    '676fde1822cb4ca6826a66bc5f9ace91',
+                                    '07605f32dc0f47acbb497f6d9d69b3fb',
+                                    '4319516bfd3c429d8d1baf51b5425b89',
+                                    'c4a142d760d146fa97b0edd56e4fa1f8'
+                                ]:
+                                if vote['weight'] == 2:
+                                    vote['weight'] = 1
+                                elif vote['weight'] == 3:
+                                    vote['weight'] = 2
+                                elif vote['weight'] == 5:
+                                    vote['weight'] = 3
+                            
+
+                #             if vote['voterId'] not in voters.keys():
+                #                 voters[vote['voterId']] = [[vote['weight'], vote['spotifyUri']]]
+                #             else:
+                #                 voters[vote['voterId']].append([vote['weight'], vote['spotifyUri']])
+                # with open('members.json') as f:
+                #     members = json.load(f)
+                # member_name_lookup = {member['user']['id']: member['user']['name'] for member in members}
+                # spotify_song_lookup = {
+                #     'spotify:track:16nJl8NnriCJxraco5Zssm': 'Better Git It in Your Soul - Mingus',
+                #     'spotify:track:1WOwGVtrVWtV3WW7X4TZoB': 'Public Service Announcement - JAY-Z',
+                #     'spotify:track:3tj1cKu9SOnchX6twBKn30': 'Interior People - King Gizzard & The Lizard Wizard',
+                #     'spotify:track:3tCCH9aaiKRmwOjvIKq76d': 'Shawty - Remi Wolf',
+                #     'spotify:track:3iRfVcDbAhkhxwJuw2cPSv': 'Solid Gone - Pert Near Sandstone',
+                #     'spotify:track:4ZReuzjoiFMVWwly2NccJh': 'Limited World - Cory Wong, Caleb Hawley',
+                #     'spotify:track:5pvYvvO0IDkuK1FDWPWMXy': 'Apollo\'s Mood - The Olympians',
+                #     'spotify:track:6Ln5KqJbn672z67ZowD2pu': 'Camarillo Brillo - Frank Zappa, The Mothers',
+                #     'spotify:track:4NXmcUMQauqEtDYDgP0MEi': 'Prélude à l\'après-midi d\'un faune - Debussy',
+                #     'spotify:track:0YQznyH9mJn6UTwWFHqy4b': 'El Bandido - Nicolas Jaar',
+                #     'spotify:track:5JRMqkR82k2fdDEAim9SCN': 'Peach - Kevin Abstract',
+                #     'spotify:track:3iNJUrTTqODoKapRzameCI': 'Hell - Clown Core'
+                #     }
+                # for voterId, vote_stats in voters.items():
+                #     vote_total = 0
+                #     for vote_stat in vote_stats:
+                #         vote_total += vote_stat[0]
+                #     if vote_total > 6:
+                #         # print(member_name_lookup[voterId])
+                #         print(voterId)
+                #         for vote_stat in vote_stats:
+                #             pass
+                #             # print(vote_stat[0], spotify_song_lookup[vote_stat[1]])
+
+
             votes_by_round.append(results)
 
     return votes_by_round
@@ -214,53 +270,87 @@ def cumulative_scores_by_round_array():
 
     return [calc_similarity_scores(results_through_round) for results_through_round in cumulative_results_by_round]
 
-overall_scores, this_round_scores = cumulative_and_last_round_scores()
+
+def render_similarity_table():
+    overall_scores, this_round_scores = cumulative_and_last_round_scores()
+
+    def top_and_bottom(similarity_scores):
+        all = []
+        done_members = []
+
+        for member, scores in similarity_scores.items():
+            for score in scores:
+                if score['name'] in done_members:
+                    continue
+                all.append({'member_a':member, 'member_b': score['name'], 'score': float(score['score'])})
+            done_members.append(member)
+        all.sort(key=lambda x: x['score'], reverse=True)
+
+        top_five = all[:5]
+        bottom_five_worst_first = all[-5:]
+        bottom_five_worst_first.sort(key=lambda x: x['score'])
+        return top_five, bottom_five_worst_first
+    
+    top_five, bottom_five = top_and_bottom(overall_scores)
+
+    def max_min(results):
+        max_score = float(max(score['score'] for scores in results.values() for score in scores))
+        min_score = float(min(score['score'] for scores in results.values() for score in scores))
+        return max_score, min_score
+
+    overall_max_score, overall_min_score = max_min(overall_scores)
+    this_round_max, this_round_min = max_min(this_round_scores)
+
+    with open('similarity_table_template.html.jinja2') as file_:
+        template = Template(file_.read())
+
+    rendered_template = template.render(
+        similarity_scores=overall_scores,
+        overall_max=overall_max_score,
+        overall_min=overall_min_score,
+        this_week_max = this_round_max,
+        this_week_min = this_round_min,
+        top_five = top_five,
+        bottom_five = bottom_five,
+        this_week=this_round_scores,
+        this_week_number = len(votes_by_round_array())
+    )
 
 
-def top_and_bottom(similarity_scores):
-    all = []
-    done_members = []
-
-    for member, scores in similarity_scores.items():
-        for score in scores:
-            if score['name'] in done_members:
-                continue
-            all.append({'member_a':member, 'member_b': score['name'], 'score': float(score['score'])})
-        done_members.append(member)
-    all.sort(key=lambda x: x['score'], reverse=True)
-
-    top_five = all[:5]
-    bottom_five_worst_first = all[-5:]
-    bottom_five_worst_first.sort(key=lambda x: x['score'])
-    return top_five, bottom_five_worst_first
-
-top_five, bottom_five = top_and_bottom(overall_scores)
-
-def max_min(results):
-    max_score = float(max(score['score'] for scores in results.values() for score in scores))
-    min_score = float(min(score['score'] for scores in results.values() for score in scores))
-    return max_score, min_score
-
-overall_max_score, overall_min_score = max_min(overall_scores)
-this_round_max, this_round_min = max_min(this_round_scores)
-
-with open('similarity_table_template.html.jinja2') as file_:
-    template = Template(file_.read())
-
-rendered_template = template.render(
-    similarity_scores=overall_scores,
-    overall_max=overall_max_score,
-    overall_min=overall_min_score,
-    this_week_max = this_round_max,
-    this_week_min = this_round_min,
-    top_five = top_five,
-    bottom_five = bottom_five,
-    this_week=this_round_scores,
-    this_week_number = 3
- )
+    with open('similarity_table.html', 'w+') as file_:
+        file_.write(rendered_template)
 
 
-with open('similarity_table.html', 'w+') as file_:
-    file_.write(rendered_template)
+if __name__ == "__main__":
+    render_similarity_table()
+    # vbr = votes_by_round_array(scale_down_round_1=True)
+    # voters = {}
+    # for round in vbr:
+    #     for song in round:
+    #         for vote in song['votes']:
+    #             if vote['weight'] > 0:
+    #                 if vote['voterId'] not in voters.keys():
+    #                     voters[vote['voterId']] = [vote['weight']]
+    #                 else:
+    #                     voters[vote['voterId']].append(vote['weight'])
 
+    # with open ('members.json') as f:
+    #     members = json.load(f)
+    # member_name_lookup = {member['user']['id']: member['user']['name'] for member in members}
+    # if os.path.exists('name_map.json'):
+    #     with open('name_map.json') as f:
+    #         name_map = json.load(f)
+        
+    #     for member_id, member_name in member_name_lookup.items():
+    #         if member_name in name_map.keys():
+    #             member_name_lookup[member_id] = name_map[member_name]
+    # for voter, votes in voters.items():
+    #     votes.sort()
+    #     votes.reverse()
+    #     votes = [vote for vote in votes if vote > 1]
+    #     print(member_name_lookup[voter], '|',sum(votes),'x', votes)
+
+
+
+    # pprint(voters)
 

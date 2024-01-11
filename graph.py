@@ -1,6 +1,5 @@
 import json
 import time
-from functools import partial
 import pdb
 
 
@@ -10,6 +9,7 @@ import pandas as pd
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 
 from similarity import cumulative_scores_by_round_array
+
 
 def positions(similarity_scores, start_pos=None):
     min_score = min(score['score'] for scores in similarity_scores.values() for score in scores)
@@ -26,6 +26,7 @@ def positions(similarity_scores, start_pos=None):
     pos = nx.kamada_kawai_layout(G, dim=2, pos=start_pos)
     return pos
 
+
 def graph(positions, round_num):
     fig, ax = plt.subplots(1, figsize=(15, 10))
 
@@ -40,16 +41,6 @@ def graph(positions, round_num):
 
     plt.show()
     return positions
-
-
-cumulative_scores_by_round = cumulative_scores_by_round_array()
-
-pos_by_round = []
-for scores_through_round in cumulative_scores_by_round:
-    if not pos_by_round:
-        pos_by_round.append(positions(scores_through_round))
-    else:
-        pos_by_round.append(positions(scores_through_round, start_pos=pos_by_round[-1]))
 
 
 def make_animation(pos_by_round):
@@ -116,12 +107,24 @@ def make_animation(pos_by_round):
 
     return animation
 
+
 def save_animation(anim):
     ffWriter = FFMpegWriter(fps=24)
     timestring = int(time.time())
     anim.save(f'output/out-{timestring}.mp4', writer=ffWriter)
 
-anim = make_animation(pos_by_round)
-# save_animation(anim)
-plt.show()
+
+if __name__ == '__main__':
+    cumulative_scores_by_round = cumulative_scores_by_round_array()
+
+    pos_by_round = []
+    for scores_through_round in cumulative_scores_by_round:
+        if not pos_by_round:
+            pos_by_round.append(positions(scores_through_round))
+        else:
+            pos_by_round.append(positions(scores_through_round, start_pos=pos_by_round[-1]))
+
+    anim = make_animation(pos_by_round)
+    save_animation(anim)
+    # plt.show()
 
