@@ -2,6 +2,7 @@ import json
 import time
 import pdb
 import os
+import math
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -71,27 +72,71 @@ def make_animation(pos_by_round):
     node_color = '#6fd7f8'
     ax.axis('off')
     sc = ax.scatter(x_array, y_array, c=node_color, label=node_name, s=6000)
-    text_artists['title_artist'] = ax.set_title(f'After Round 1', fontsize=48)
+    text_artists['title_artist'] = ax.set_title(f'Round 1', fontsize=48)
     fig.tight_layout()
     
-    animation_frames_per_round = 80
-    freeze_frames_per_round = 40
-    frames_per_round = animation_frames_per_round + freeze_frames_per_round
+    # If there are more than 3 rounds, the first 60% of the rounds will be shown for less time than more recent rounds since most voters will have already seen the videos of the early rounds in previous weeks.
+    num_total_rounds = len(pos_by_round)
+    num_recent_rounds = math.ceil(num_total_rounds / 3) if num_total_rounds > 3 else num_total_rounds
+    num_old_rounds = max(num_total_rounds - num_recent_rounds, 0)
+    num_old_animated_rounds = max(num_old_rounds - 1, 0)
+    
+    def is_recent_round(round_num):
+        return round_num > num_old_rounds
+    
+    first_round_freeze_frames = 30
+    animation_frames_per_old_round = 30
+    animation_frames_per_recent_round = 50
+    freeze_frames_per_old_round = 15
+    freeze_frames_per_recent_round = 30
+
+    def ending_frame(round_num):
+        if round_num == 1:
+            return first_round_freeze_frames
+        if is_recent_round(round_num):
+            previous_old_animated_rounds = num_old_animated_rounds
+            previous_recent_rounds = round_num - 1 - num_old_rounds if num_old_rounds else round_num - 2
+        else:
+            previous_old_animated_rounds = max(round_num - 2, 0)
+            previous_recent_rounds = 0
+        frames_per_old_animated_round = animation_frames_per_old_round + freeze_frames_per_old_round
+        frames_per_recent_round = animation_frames_per_recent_round + freeze_frames_per_recent_round
+        this_round_frames = frames_per_recent_round if is_recent_round(round_num) else frames_per_old_animated_round
+        return first_round_freeze_frames + previous_old_animated_rounds * frames_per_old_animated_round + previous_recent_rounds * frames_per_recent_round + this_round_frames
+
+    params_by_round = [
+        {
+            'anim_length': first_round_freeze_frames,
+            'anim_start': 0,
+        }
+    ]
+    params_by_round += [
+        {
+            'anim_length': animation_frames_per_recent_round if is_recent_round(round_num) else animation_frames_per_old_round,
+            'anim_start': ending_frame(round_num - 1) if round_num > 1 else 0,
+        } for round_num in range(2, num_total_rounds + 1)
+    ]
+
+    ending_frames = [ending_frame(round_num) for round_num in range(1, num_total_rounds + 1)]
+
+    def round_num_from_frame_num(frame_num):
+        for round_num, ending_frame in enumerate(ending_frames):
+            if frame_num <= ending_frame:
+                return round_num + 1
 
     def update_positions(frame_num):
-        round_num = int(frame_num / frames_per_round + 1)
-        alpha = max(frame_num % frames_per_round - freeze_frames_per_round, 0) / animation_frames_per_round
-        if frame_num % frames_per_round < freeze_frames_per_round:
-            text_artists['title_artist'].set_text(f'After Round {round_num}')
-        else:
-            text_artists['title_artist'].set_text('')
+        round_num = round_num_from_frame_num(frame_num)
+        round_params = params_by_round[round_num - 1]
+        alpha = min((frame_num - round_params['anim_start']) / round_params['anim_length'], 1) if round_num > 1 else 0
+        text_artists['title_artist'].set_text(f'Round {round_num}')
 
         x_array = []
         y_array = []
-        this_round_pos = pos_by_round[round_num - 1]
-        next_round_pos = pos_by_round[round_num] if round_num < len(pos_by_round) else this_round_pos
-        for node_name, (x, y) in this_round_pos.items():
-            next_round_x, next_round_y = next_round_pos[node_name]
+        # When a particular round is being animated, the end positions are the positions for that round.
+        start_pos = pos_by_round[round_num - 2] if round_num > 1 else pos_by_round[0]
+        end_pos = pos_by_round[round_num - 1]
+        for node_name, (x, y) in start_pos.items():
+            next_round_x, next_round_y = end_pos[node_name]
             x = (1 - alpha) * x + alpha * next_round_x
             y = (1 - alpha) * y + alpha * next_round_y
             x_array.append(x)
@@ -101,7 +146,7 @@ def make_animation(pos_by_round):
         sc.set_offsets(list(zip(x_array, y_array)))
         return sc
         
-    total_frames = frames_per_round * (len(pos_by_round) - 1) + freeze_frames_per_round
+    total_frames = ending_frame(num_total_rounds)
 
     animation = FuncAnimation(fig, update_positions, frames=total_frames, interval=50, repeat=True)
 
