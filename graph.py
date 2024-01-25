@@ -12,6 +12,21 @@ from matplotlib.animation import FuncAnimation, FFMpegWriter
 from similarity import cumulative_scores_by_round_array
 
 
+default_league_json_path = os.path.join('leagues','default_league_info.json')
+if os.path.exists(default_league_json_path):
+    with open(default_league_json_path) as f:
+        league_name = json.loads(f.read())['league_name']
+        league_folderpath = os.path.join('leagues',league_name)
+else:
+    league_folders = [item_name for item_name in os.listdir('leagues') if os.path.isdir(os.path.join('leagues', item_name))]
+    if len(league_folders) > 1:
+        league_choices = '\n'.join([f'{i+1}: {league_name}' for i, league_name in enumerate(league_folders)])
+        league_choice = input(f'Which league would you like to generate a cluster video for? {league_choices}\nType a number, then hit enter')
+        league_folderpath = os.path.join('leagues', league_folders[int(league_choice) - 1])
+    else:
+        league_folderpath = os.path.join('leagues', league_folders[0])
+
+
 def positions(similarity_scores, start_pos=None):
     min_score = min(score['score'] for scores in similarity_scores.values() for score in scores)
     max_score = max(score['score'] for scores in similarity_scores.values() for score in scores)
@@ -45,6 +60,7 @@ def graph(positions, round_num):
 
 
 def make_animation(pos_by_round):
+    print('Making video...')
     fig, ax = plt.subplots(1, figsize=(15, 10))
 
     all_values = []
@@ -157,11 +173,12 @@ def save_animation(anim):
     ffWriter = FFMpegWriter(fps=24)
     timestring = int(time.time())
     
-    output_dir = 'output'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    output_folderpath = os.path.join(league_folderpath, 'video_output')
+    if not os.path.exists(output_folderpath):
+        os.makedirs(output_folderpath)
     
-    anim.save(f'{output_dir}/out-{timestring}.mp4', writer=ffWriter)
+    anim.save(os.path.join(output_folderpath,f"out-{timestring}.mp4"), writer=ffWriter)
+    print(f'Video saved to {output_folderpath}')
 
 
 if __name__ == '__main__':

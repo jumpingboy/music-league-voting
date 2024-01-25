@@ -8,23 +8,39 @@ import os
 import os
 import json
 
+default_league_json_path = os.path.join('leagues','default_league_info.json')
+if os.path.exists(default_league_json_path):
+    with open(default_league_json_path) as f:
+        league_name = json.loads(f.read())['league_name']
+        league_folderpath = os.path.join('leagues',league_name)
+else:
+    league_folders = [item_name for item_name in os.listdir('leagues') if os.path.isdir(os.path.join('leagues', item_name))]
+    if len(league_folders) > 1:
+        league_choices = '\n'.join([f'{i+1}: {league_name}' for i, league_name in enumerate(league_folders)])
+        league_choice = input(f'Which league would you like to generate a table for? {league_choices}\nType a number, then hit enter')
+        league_folderpath = os.path.join('leagues', league_folders[int(league_choice) - 1])
+    else:
+        league_folderpath = os.path.join('leagues', league_folders[0])
+
 
 def calc_similarity_scores(results):
-    with open('members.json') as f:
+    with open(f'{league_folderpath}/members.json') as f:
         members = json.load(f)
 
     scores = {}
     member_ids = [member['user']['id'] for member in members]
     member_name_lookup = {member['user']['id']: member['user']['name'] for member in members}
 
-    if os.path.exists('name_map.json'):
-        with open('name_map.json') as f:
-            name_map = json.load(f)
-        
+    if os.path.exists(f'{league_folderpath}/name_map.json'):
+        with open(f'{league_folderpath}/name_map.json', 'r') as f:
+            name_map = json.loads(f.read())
+
         for member_id, member_name in member_name_lookup.items():
             if member_name in name_map.keys():
                 member_name_lookup[member_id] = name_map[member_name]
 
+    with open(f'{league_folderpath}/tracks.json') as f:
+        track_lookup = json.load(f)
     for member in members:
         this_member_id = member['user']['id']
         this_member_scores = {}
@@ -85,6 +101,7 @@ def calc_similarity_scores(results):
                         else:
                             song_match['type'] = 'in_out'
                             song_match['weight'] = votes_by_id[this_member_id] if this_member_voted else votes_by_id[other_member_id]
+                    song_match['song_info'] = track_lookup[song['submission']['spotifyUri']]
                     return song_match
                 
                 song_vote_stats = parse_vote_stats_for_song(this_member_id, other_member_id, song)
@@ -150,14 +167,14 @@ def calc_similarity_scores(results):
 
 
 def votes_by_round_array():
-    result_files = os.listdir('results')
+    result_files = os.listdir(f'{league_folderpath}/results')
 
     result_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
 
 
     votes_by_round = []
     for file in result_files:
-        with open(os.path.join('results', file)) as f:
+        with open(os.path.join(f'{league_folderpath}/results', file)) as f:
             results = json.load(f)['standings']
 
             votes_by_round.append(results)
@@ -183,7 +200,7 @@ def cumulative_scores_by_round_array():
     return [calc_similarity_scores(results_through_round) for results_through_round in cumulative_results_by_round]
 
 
-def render_similarity_table():
+def render_similarity_table(league_folderpath=league_folderpath):
     overall_scores, this_round_scores = cumulative_and_last_round_scores()
 
     def top_and_bottom(similarity_scores):
@@ -216,6 +233,8 @@ def render_similarity_table():
     with open('similarity_table_template.html.jinja2') as file_:
         template = Template(file_.read())
 
+    this_week_number = len(votes_by_round_array())
+
     rendered_template = template.render(
         similarity_scores=overall_scores,
         overall_max=overall_max_score,
@@ -225,11 +244,15 @@ def render_similarity_table():
         top_five = top_five,
         bottom_five = bottom_five,
         this_week=this_round_scores,
-        this_week_number = len(votes_by_round_array())
+        this_week_number = this_week_number
     )
 
+    table_output_folderpath = f'{league_folderpath}/table_output'
+    if not os.path.exists(table_output_folderpath):
+        os.mkdir(table_output_folderpath)
 
-    with open('similarity_table.html', 'w+') as file_:
+
+    with open(os.path.join(table_output_folderpath,f'round_{this_week_number}_similarity_table.html'), 'w+') as file_:
         file_.write(rendered_template)
 
 

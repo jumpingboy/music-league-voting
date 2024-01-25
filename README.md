@@ -22,15 +22,32 @@ Compare voting similarity of all members of a [Music League](https://app.musicle
     Change `activate` to `python`, and that's your path.
     You can also find the path to your virtualenv with `poetry show -v`, then just add `/bin/python` to the end, and that's your path.
 
-### Import Data:
-1. Create a folder called `results` and an empty file inside called `round_1.json` 
-2. Create an empty `members.json` file in the root directory of this repo
-3. Log into Music League and click on the Results page for Round 1 of your league
+### Automatic data import:
+1. Log in to MusicLeague in Firefox (recommended) or Chrome, with cookies enabled. You can close the browser once you are fully logged in.
+2. From inside a poetry shell, run:
+```python download_results.py```
+3. If you get a permissions popup, type the password you use to log in to your computer and click "Always Allow"
+4. That's it!
+
+### Manual data import
+If the automatic data import doesn't work for you:
+1. Run ```python download_results.py``` and choose the option "I'll do it manually"
+2. Log into Music League in your browser and click on the Results page for Round 1 of your league
 4. Open the developer console in your browser. In the Network tab, look for calls to `members` and `results` endpoints
 ![Network Tab Screenshot](./images/network_tab_screenshot.jpg)
-5. Copy the `members` response into `members.json`
-6. Copy the `results` response in `results/round_1.json`
-7. **Recommended:** To translate some members' Music League display names into shorter or more familiar names, copy `name_map_example.json` to a new file called `name_map.json` and fill it out accordingly. Names or nicknames of 8 characters or less are recommended.
+-- If you don't see calls to those endpoints, make sure the developer console is and then do a hard refresh (`command + shift + R` for Mac, or `ctrl + shift + R` on a PC)
+5. For the remaining steps, you should be looking in the folder for your league:
+```
+leagues
+├── Your League Name
+│   ├── members.json
+│   ├── name_map.json
+│   └── results
+│       └── round_1.json
+```
+5. Copy the `members` response into `members.json` (You only need to do this once per league, not for all rounds)
+6. Copy the `results` response into `results/round_1.json`, and repeat for all rounds.
+7. **Recommended:** Fill out `name_map.json` to translate members' Music League usernames into shorter or more familiar names. Display names of 8 characters or fewer are recommended.
 
 ### Generate Your Results Table
 1. Enter a poetry shell with
