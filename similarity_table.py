@@ -24,23 +24,30 @@ else:
 
 
 def calc_similarity_scores(results):
-    with open(f'{league_folderpath}/members.json') as f:
+    members_json_path = os.path.join(league_folderpath, 'members.json')
+    
+    with open(members_json_path) as f:
         members = json.load(f)
 
     scores = {}
     member_ids = [member['user']['id'] for member in members]
     member_name_lookup = {member['user']['id']: member['user']['name'] for member in members}
 
-    if os.path.exists(f'{league_folderpath}/name_map.json'):
-        with open(f'{league_folderpath}/name_map.json', 'r') as f:
+    name_map = None
+    name_map_json_path = os.path.join(league_folderpath, 'name_map.json')
+    if os.path.exists(name_map_json_path):
+        with open(name_map_json_path, 'r') as f:
             name_map = json.loads(f.read())
 
         for member_id, member_name in member_name_lookup.items():
             if member_name in name_map.keys():
                 member_name_lookup[member_id] = name_map[member_name]
 
-    with open(f'{league_folderpath}/tracks.json') as f:
-        track_lookup = json.load(f)
+    track_lookup = None
+    tracks_json_path = os.path.join(league_folderpath, 'tracks.json')
+    if os.path.exists(tracks_json_path):
+        with open(tracks_json_path) as f:
+            track_lookup = json.load(f)
     for member in members:
         this_member_id = member['user']['id']
         this_member_scores = {}
@@ -101,7 +108,8 @@ def calc_similarity_scores(results):
                         else:
                             song_match['type'] = 'in_out'
                             song_match['weight'] = votes_by_id[this_member_id] if this_member_voted else votes_by_id[other_member_id]
-                    song_match['song_info'] = track_lookup[song['submission']['spotifyUri']]
+                    if track_lookup:
+                        song_match['song_info'] = track_lookup[song['submission']['spotifyUri']]
                     return song_match
                 
                 song_vote_stats = parse_vote_stats_for_song(this_member_id, other_member_id, song)
@@ -230,7 +238,7 @@ def render_similarity_table(league_folderpath=league_folderpath):
     overall_max_score, overall_min_score = max_min(overall_scores)
     this_round_max, this_round_min = max_min(this_round_scores)
 
-    with open('similarity_table_template.html.jinja2') as file_:
+    with open('table_template.html.jinja2') as file_:
         template = Template(file_.read())
 
     this_week_number = len(votes_by_round_array())
