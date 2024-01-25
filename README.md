@@ -56,7 +56,7 @@ poetry shell
 ```
 2. Run
 ```
-python similarity_table.py
+python similarity.py
 ```
 3. Open the resulting `similarity_table.html` file, which should open it in your browser
 4. Select all the **contents** of the page (not the url) and copy
