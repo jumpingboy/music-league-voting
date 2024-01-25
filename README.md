@@ -56,7 +56,7 @@ poetry shell
 ```
 2. Run
 ```
-python similarity.py
+python similarity_table.py
 ```
 3. Open the resulting `similarity_table.html` file, which should open it in your browser
 4. Select all the **contents** of the page (not the url) and copy
@@ -69,7 +69,7 @@ poetry shell
 ```
 2. Run
 ```
-python graph.py
+python cluster_video.py
 ```
 3. You will see a new mp4 file in the `output` folder, but wait until the python script finishes running before trying to open it.
 4. Change the file name if you want: the output is named with a timestamp by default.
