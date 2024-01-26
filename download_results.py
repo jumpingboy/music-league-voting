@@ -78,8 +78,12 @@ if not cookie_jar:
 
 headers = {'Content-Type': 'application/json'}
 
+if not os.path.exists(f"leagues"):
+    os.mkdir("leagues")
+
 league_id = None
 league_name = None
+
 default_league_info_path = os.path.join('leagues', 'default_league_info.json')
 if os.path.exists(default_league_info_path):
     with open(default_league_info_path, 'r') as f:
@@ -132,10 +136,16 @@ def track_lookup(tracks):
     return track_lookup
 
 
-cwd = os.getcwd()
-if os.path.exists(f'{cwd}/leagues/{league_name}/results'):
-    downloaded_rounds_count = len(os.listdir(f'{cwd}/leagues/{league_name}/results'))
-    if len(os.listdir(f'{cwd}/leagues/{league_name}/results')) == len(round_ids):
+league_folderpath = os.path.join("leagues",league_name)
+if not os.path.exists(league_folderpath):
+    os.mkdir(league_folderpath)
+results_folderpath = os.path.join(league_folderpath, "results")
+if not os.path.exists(results_folderpath):
+    os.mkdir(results_folderpath)
+
+downloaded_rounds_count = len(os.listdir(results_folderpath))
+if downloaded_rounds_count:
+    if downloaded_rounds_count == len(round_ids):
         print(f"\nResults already up to date.\n(To re-download any files or folders inside 'leagues', delete them and run this script again.)")
     else:
         new_rounds = round_ids[downloaded_rounds_count-1:]
@@ -146,56 +156,52 @@ if os.path.exists(f'{cwd}/leagues/{league_name}/results'):
             results = results_response.json()
             track_ids = [song['submission']['spotifyUri'].replace('spotify:track:','') for song in results['standings']]
             new_track_ids += track_ids
-            with open(f"leagues/{league_name}/results/round_{round_num}.json", 'w+') as f:
+            with open(os.path.join(results_folderpath, f"round_{round_num}.json"), 'w+') as f:
                 f.write(json.dumps(results))
-        if os.path.exists(f"{cwd}/leagues/{league_name}/tracks.json"):
+        tracks_json_path = os.path.join(league_folderpath,"tracks.json")
+        if os.path.exists(tracks_json_path):
             tracks_url = f"https://app.musicleague.com/api/v1/tracks?ids={','.join(new_track_ids)}"
             tracks_response = requests.get(tracks_url, cookies=cookie_jar, headers=headers)
             tracks = tracks_response.json()['tracks']
             lookup = track_lookup(tracks)
-            with open(f"leagues/{league_name}/tracks.json", 'r') as f:
+            with open(tracks_json_path, 'r') as f:
                 existing_lookup = json.loads(f.read())
             lookup.update(existing_lookup)
-            with open(f"leagues/{league_name}/tracks.json", 'w') as f:
+            with open(tracks_json_path, 'w') as f:
                 f.write(json.dumps(lookup, indent=4))
         else:
             pass #If tracks.json doesn't exist, all tracks will be fetched at once at the end of the script
 
-
-if not os.path.exists(f"{cwd}/leagues/"):
-    os.mkdir("leagues")
-if not os.path.exists(f"{cwd}/leagues/{league_name}"):
-    os.mkdir(f"leagues/{league_name}")
-if not os.path.exists(f"{cwd}/leagues/{league_name}/results"):
-    os.mkdir(f"leagues/{league_name}/results")
-results_folderpath = f"{cwd}/leagues/{league_name}/results"
-
-if not os.listdir(f"{cwd}/leagues/{league_name}/results"):
+else:
     print(f"\nDownloading results for {league_name} for all rounds...")
     for round_num, round_id in enumerate(round_ids):
         results_url = f"https://app.musicleague.com/api/v1/leagues/{league_id}/rounds/{round_id}/results"
         results_response = requests.get(results_url, cookies=cookie_jar, headers=headers)
         results = results_response.json()
-        with open(f"leagues/{league_name}/results/round_{round_num+1}.json", 'w+') as f:
+        with open(os.path.join(results_folderpath,f"round_{round_num+1}.json"), 'w+') as f:
             f.write(json.dumps(results))
     print("Results downloaded.")
-if not os.path.exists(f"{cwd}/leagues/{league_name}/members.json"):
+
+members_json_path = os.path.join(league_folderpath, "members.json")
+if not os.path.exists(members_json_path):
     print(f"\nDownloading members for {league_name}...")
     members_url = f"https://app.musicleague.com/api/v1/leagues/{league_id}/members"
     members_response = requests.get(members_url, cookies=cookie_jar, headers=headers)
     members = members_response.json()
-    with open(f"leagues/{league_name}/members.json", 'w+') as f:
+    with open(members_json_path, 'w+') as f:
         f.write(json.dumps(members))
     print("Members downloaded.")
-if not os.path.exists(f"{cwd}/leagues/{league_name}/name_map.json"):
+name_map_json_path = os.path.join(league_folderpath, "name_map.json")
+if not os.path.exists(name_map_json_path):
     print(f"\nGenerating name map for {league_name}...")
-    with open(f"leagues/{league_name}/members.json", 'r') as f:
+    with open(members_json_path, 'r') as f:
         members = json.loads(f.read())
         name_map = {member['user']['name']: member['user']['name'] for member in members}
-    with open(f"leagues/{league_name}/name_map.json", 'w+') as f:
+    with open(name_map_json_path, 'w+') as f:
         f.write(json.dumps(name_map, indent=4))
     print("Name map generated.")
-if not os.path.exists(f"{cwd}/leagues/{league_name}/tracks.json"):
+tracks_json_path = os.path.join(league_folderpath, "tracks.json")
+if not os.path.exists(tracks_json_path):
     track_ids = []
     print(f"\nDownloading track names for {league_name}...")
     result_files = os.listdir(results_folderpath)
@@ -211,7 +217,7 @@ if not os.path.exists(f"{cwd}/leagues/{league_name}/tracks.json"):
     track_response = requests.get(track_url, cookies=cookie_jar, headers=headers)
     tracks = track_response.json()['tracks']
     lookup = track_lookup(tracks)
-    with open(f"leagues/{league_name}/tracks.json", 'w+') as f:
+    with open(tracks_json_path, 'w+') as f:
         f.write(json.dumps(lookup, indent=4))
     print("Track names downloaded.")
 
