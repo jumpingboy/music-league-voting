@@ -61,7 +61,7 @@ def calc_similarity_scores(results):
 
             for song in results:
                 def parse_vote_stats_for_song(this_member_id, other_member_id, song):
-                    votes_by_id = {vote['voterId']: vote['weight'] for vote in song['votes']}
+                    votes_by_id = {vote['voterId']: vote['weight'] for vote in song['votes'] if vote['weight'] != 0}
                     song_match = {}
                     submitter_id = song['submission']['submitterId']
                     this_member_voted = this_member_id in votes_by_id.keys()
@@ -116,7 +116,6 @@ def calc_similarity_scores(results):
                 this_member_scores[other_member_id].append(song_vote_stats)
 
         scores[this_member_id] = this_member_scores
-
     similarity_scores = {}
 
 
@@ -126,8 +125,7 @@ def calc_similarity_scores(results):
             if other_member_id in similarity_scores.keys():
                 similarity_scores[this_member_id][other_member_id] = similarity_scores[other_member_id][this_member_id]
                 continue
-            member_score = 0
-            for vote in other_member_scores:
+            def score_vote(vote):
                 vote_score = 0
                 # weight 1 to 10
                 against_the_crowd_bonus = vote['crowd_vote_rms']
@@ -155,23 +153,51 @@ def calc_similarity_scores(results):
                     else:
                         vote_score += np.sqrt(vote['weight'] - 1) * -1.2 - 1
                 vote['score'] = round(vote_score,1)
-                member_score += vote_score
+                return vote
+            
+            total_score = 0
+            breakdown = []
+            for vote in other_member_scores:
+                scored_vote = score_vote(vote)
+                song_string = f"{vote['song_info']['title']} | {vote['song_info']['artist']}"
+                breakdown.append({'song': song_string, 'score': scored_vote['score'], 'against_the_crowd_bonus': scored_vote['crowd_vote_rms'] if scored_vote['score'] > 0 else 0, 'type': scored_vote['type']})
+                total_score += scored_vote['score']
 
-            similarity_scores[this_member_id][other_member_id] = round(member_score, 1)
+            similarity_scores[this_member_id][other_member_id]= {
+                'breakdown': sorted(breakdown, key=lambda x: x['score'], reverse=True),
+                'score': round(total_score, 1)
+            }
 
-    similarity_scores_names = {}
+    similarity_scores_by_name = {}
     for member_id, member_scores in similarity_scores.items():
-        similarity_scores_names[member_name_lookup[member_id]] = {}
+        similarity_scores_by_name[member_name_lookup[member_id]] = {}
         for other_member_id, other_member_score in member_scores.items():
-            similarity_scores_names[member_name_lookup[member_id]][member_name_lookup[other_member_id]] = other_member_score
+            similarity_scores_by_name[member_name_lookup[member_id]][member_name_lookup[other_member_id]] = other_member_score
 
 
-    sorted_similarity_scores_names = {}
-    for member, scores in similarity_scores_names.items():
-        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        sorted_similarity_scores_names[member] = [{'name': name, 'score': score} for name, score in sorted_scores]
+    sorted_by_score = {}
+    for member, scores in similarity_scores_by_name.items():
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True)
+        sorted_by_score[member] = [{'name': name, 'score': score['score'], 'breakdown': score['breakdown']} for name, score in sorted_scores]
 
-    return sorted_similarity_scores_names
+    return sorted_by_score
+
+
+def top_songs_for_pair(member_a, member_b, round=None):
+    print(member_a, member_b)
+    cumulative, last_round = cumulative_and_last_round_scores()
+    print('\n Last round')
+    for member in last_round[member_a]:
+        if member['name'] == member_b:
+            print(member['score'], 'Total score')
+            for song in member['breakdown']:
+                print(song['score'], song['type'], song['song'], song['against_the_crowd_bonus'] if song['score'] > 0 else 0)
+    print('Cumulative')
+    for member in cumulative[member_a]:
+        if member['name'] == member_b:
+            print(member['score'], 'Total score')
+            for song in member['breakdown'][:10]:
+                print(song['score'], song['type'], song['song'], song['against_the_crowd_bonus'] if song['score'] > 0 else 0)
 
 
 def votes_by_round_array():
@@ -191,10 +217,10 @@ def votes_by_round_array():
 
 
 def cumulative_and_last_round_scores():
-    cumulative_results = sum(votes_by_round_array(), [])
-    last_round_results = votes_by_round_array()[-1]
+    cumulative_scores = sum(votes_by_round_array(), [])
+    last_round_scores = votes_by_round_array()[-1]
 
-    return calc_similarity_scores(cumulative_results), calc_similarity_scores(last_round_results)
+    return calc_similarity_scores(cumulative_scores), calc_similarity_scores(last_round_scores)
 
 
 def cumulative_scores_by_round_array():
@@ -208,7 +234,7 @@ def cumulative_scores_by_round_array():
     return [calc_similarity_scores(results_through_round) for results_through_round in cumulative_results_by_round]
 
 
-def render_similarity_table(league_folderpath=league_folderpath):
+def render_similarity_table():
     overall_scores, this_round_scores = cumulative_and_last_round_scores()
 
     def top_and_bottom(similarity_scores):
@@ -266,4 +292,3 @@ def render_similarity_table(league_folderpath=league_folderpath):
 
 if __name__ == "__main__":
     render_similarity_table()
-
