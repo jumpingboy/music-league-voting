@@ -177,6 +177,11 @@ def save_animation(anim):
     if not os.path.exists(output_folderpath):
         os.makedirs(output_folderpath)
     
+    print('league_folderpath: ', league_folderpath)
+    print('output_folderpath:', output_folderpath)
+    print('timestring:', timestring)
+    print('output_file', os.path.join(output_folderpath,f"out-{timestring}.mp4"))
+
     anim.save(os.path.join(output_folderpath,f"out-{timestring}.mp4"), writer=ffWriter)
     print(f'Video saved to {output_folderpath}')
 
