@@ -1,12 +1,11 @@
 import json
 from pprint import pprint
 import pdb
+import os
 
 import numpy as np
 from jinja2 import Template
-import os
-import os
-import json
+from matplotlib import pyplot as plt
 
 default_league_json_path = os.path.join('leagues','default_league_info.json')
 if os.path.exists(default_league_json_path):
@@ -23,14 +22,12 @@ else:
         league_folderpath = os.path.join('leagues', league_folders[0])
 
 
-def calc_similarity_scores(results):
+def member_names_by_id():
     members_json_path = os.path.join(league_folderpath, 'members.json')
     
     with open(members_json_path) as f:
         members = json.load(f)
 
-    scores = {}
-    member_ids = [member['user']['id'] for member in members]
     member_name_lookup = {member['user']['id']: member['user']['name'] for member in members}
 
     name_map = None
@@ -42,6 +39,19 @@ def calc_similarity_scores(results):
         for member_id, member_name in member_name_lookup.items():
             if member_name in name_map.keys():
                 member_name_lookup[member_id] = name_map[member_name]
+
+    return member_name_lookup
+
+
+def calc_similarity_scores(results):
+    members_json_path = os.path.join(league_folderpath, 'members.json')
+    
+    with open(members_json_path) as f:
+        members = json.load(f)
+
+    scores = {}
+    member_ids = [member['user']['id'] for member in members]
+    member_name_lookup = member_names_by_id()
 
     track_lookup = None
     tracks_json_path = os.path.join(league_folderpath, 'tracks.json')
@@ -131,7 +141,7 @@ def calc_similarity_scores(results):
                 against_the_crowd_bonus = vote['crowd_vote_rms']
                 if vote['type'] == 'submitter' and vote['weight'] > 0:
                     vote_score += np.sqrt(vote['weight'] - 1) * 1.2 + 3 + against_the_crowd_bonus
-                # weight 1 to 10
+                # weight 2 to 12
                 elif vote['type'] == 'both_up':
                     vote_score += np.sqrt(vote['weight'] - 1 - vote['diff']/1.5) * 1.4 + 2 + against_the_crowd_bonus
                 elif vote['type'] == 'both_down':
@@ -184,6 +194,7 @@ def calc_similarity_scores(results):
 
 
 def top_songs_for_pair(member_a, member_b, round=None):
+    print('')
     print(member_a, member_b)
     cumulative, last_round = cumulative_and_last_round_scores()
     print('\n Last round')
@@ -289,6 +300,34 @@ def render_similarity_table():
     with open(os.path.join(table_output_folderpath,f'round_{this_week_number}_similarity_table.html'), 'w+') as file_:
         file_.write(rendered_template)
 
+
+def points_by_name_by_round():
+    rounds = votes_by_round_array()
+    points_by_name_by_round_array = []
+    
+    member_name_lookup = member_names_by_id()
+
+    for round_result in rounds:
+        round_points = {}
+        for track in round_result:
+            name = member_name_lookup[track['submission']['submitterId']]
+            round_points[name] = track['pointsActual']
+        for name in member_name_lookup.values():
+            if name not in round_points.keys():
+                round_points[name] = 0
+        points_by_name_by_round_array.append(round_points)
+    
+    cumulative_points_by_round = []
+    for round in points_by_name_by_round_array:
+        cumulative_points = {}
+        if not cumulative_points_by_round:
+            cumulative_points = round
+        else:
+            for name in round.keys():
+                cumulative_points[name] = round[name] + cumulative_points_by_round[-1][name]
+        cumulative_points_by_round.append(cumulative_points)
+    
+    return cumulative_points_by_round
 
 if __name__ == "__main__":
     render_similarity_table()

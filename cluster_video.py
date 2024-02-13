@@ -9,7 +9,7 @@ import networkx as nx
 import pandas as pd
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 
-from similarity import cumulative_scores_by_round_array
+from similarity import cumulative_scores_by_round_array, points_by_name_by_round
 
 
 default_league_json_path = os.path.join('leagues','default_league_info.json')
@@ -59,9 +59,16 @@ def graph(positions, round_num):
     return positions
 
 
-def make_animation(pos_by_round):
+def make_animation(pos_by_round, points_by_round):
     print('Making video...')
     fig, ax = plt.subplots(1, figsize=(15, 10))
+
+    for round in points_by_round:
+        max_points = max(round.values())
+        min_points = min(round.values())
+        range_points = max_points - min_points
+        for name, points in round.items():
+            round[name] = (points - min_points) / range_points  
 
     all_values = []
     for pos in pos_by_round:
@@ -87,6 +94,9 @@ def make_animation(pos_by_round):
 
     node_color = '#6fd7f8'
     ax.axis('off')
+    min_node_size = 200
+    max_node_size = 20000
+    node_size_range = max_node_size - min_node_size
     sc = ax.scatter(x_array, y_array, c=node_color, label=node_name, s=6000)
     text_artists['title_artist'] = ax.set_title(f'Round 1', fontsize=48)
     fig.tight_layout()
@@ -149,15 +159,22 @@ def make_animation(pos_by_round):
         x_array = []
         y_array = []
         # When a particular round is being animated, the end positions are the positions for that round.
+        names_in_order = [name for name in text_artists.keys() if name != 'title_artist']
+        start_sizes = [min_node_size + points_by_round[round_num - 2][node_name] * node_size_range for node_name in names_in_order] if round_num > 1 else [min_node_size + points_by_round[0][node_name] * node_size_range for node_name in names_in_order]
+        end_sizes = [min_node_size + points_by_round[round_num - 1][node_name] * node_size_range for node_name in names_in_order]
         start_pos = pos_by_round[round_num - 2] if round_num > 1 else pos_by_round[0]
         end_pos = pos_by_round[round_num - 1]
+        new_sizes = []
         for node_name, (x, y) in start_pos.items():
             next_round_x, next_round_y = end_pos[node_name]
             x = (1 - alpha) * x + alpha * next_round_x
             y = (1 - alpha) * y + alpha * next_round_y
+            size = (1 - alpha) * start_sizes[names_in_order.index(node_name)] + alpha * end_sizes[names_in_order.index(node_name)]
             x_array.append(x)
             y_array.append(y)
+            new_sizes.append(size)
             text_artists[node_name].set_position((x, y))
+        sc.set_sizes(new_sizes)
 
         sc.set_offsets(list(zip(x_array, y_array)))
         return sc
@@ -183,6 +200,7 @@ def save_animation(anim):
 
 if __name__ == '__main__':
     cumulative_scores_by_round = cumulative_scores_by_round_array()
+    points_by_round = points_by_name_by_round()
 
     pos_by_round = []
     for scores_through_round in cumulative_scores_by_round:
@@ -191,7 +209,7 @@ if __name__ == '__main__':
         else:
             pos_by_round.append(positions(scores_through_round, start_pos=pos_by_round[-1]))
 
-    anim = make_animation(pos_by_round)
+    anim = make_animation(pos_by_round[:3], points_by_round[:3])
     save_animation(anim)
     # plt.show()
 
