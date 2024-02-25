@@ -40,16 +40,17 @@ def positions(similarity_scores, start_pos=None):
             G.add_edge(member_name, score_dict['name'], weight=optimal_distance)
 
     pos = nx.kamada_kawai_layout(G, dim=2, pos=start_pos)
+
     return pos
 
+node_colors = ["red","green","blue","yellow","pink","orange","purple","beige","brown","gray","cyan","magenta"]
 
+    
 def graph(positions, round_num):
     fig, ax = plt.subplots(1, figsize=(15, 10))
-
-    for node_name, (x, y) in positions.items():
-        node_color = '#6fd7f8'
-
-        ax.scatter(x, y, c=node_color, label=node_name, s=1800)
+    
+    for node_name, (x, y) in positions.items():  
+        ax.scatter(x, y, c=node_colors[:len(positions)], label=node_name, s=1800, edgecolors='black', alpha=0.5)
         ax.text(x, y, node_name, color='black', fontsize=12, ha='center', va='center')
 
     ax.axis('off')
@@ -84,21 +85,21 @@ def make_animation(pos_by_round, points_by_round):
 
     x_array = []
     y_array = []
-
     text_artists = {}
 
     for node_name, (x, y) in pos_by_round[0].items():
         x_array.append(x)
         y_array.append(y)
         text_artists[node_name] = ax.text(x, y, node_name, color='black', fontsize=24, ha='center', va='center')
-
-    node_color = '#6fd7f8'
+    
     ax.axis('off')
     min_node_size = 200
     max_node_size = 20000
     node_size_range = max_node_size - min_node_size
-    sc = ax.scatter(x_array, y_array, c=node_color, label=node_name, s=6000)
+    
+    sc = ax.scatter(x_array, y_array, c=node_colors[:len(pos_by_round[0])], label=node_name, s=6000, edgecolors='black', alpha=0.5)
     text_artists['title_artist'] = ax.set_title(f'Round 1', fontsize=48)
+    node_colors_by_name = {name: node_colors[i % len(node_colors)] for i, name in enumerate(text_artists.keys())}
     fig.tight_layout()
     
     # If there are more than 3 rounds, the first 60% of the rounds will be shown for less time than more recent rounds since most voters will have already seen the videos of the early rounds in previous weeks.
@@ -165,6 +166,7 @@ def make_animation(pos_by_round, points_by_round):
         start_pos = pos_by_round[round_num - 2] if round_num > 1 else pos_by_round[0]
         end_pos = pos_by_round[round_num - 1]
         new_sizes = []
+        colors = []
         for node_name, (x, y) in start_pos.items():
             next_round_x, next_round_y = end_pos[node_name]
             x = (1 - alpha) * x + alpha * next_round_x
@@ -173,8 +175,11 @@ def make_animation(pos_by_round, points_by_round):
             x_array.append(x)
             y_array.append(y)
             new_sizes.append(size)
+            colors.append(node_colors_by_name[node_name])
             text_artists[node_name].set_position((x, y))
         sc.set_sizes(new_sizes)
+        for i, color in enumerate(colors):
+            sc._facecolors[i] = plt.cm.colors.to_rgba(color)
 
         sc.set_offsets(list(zip(x_array, y_array)))
         return sc
@@ -192,8 +197,8 @@ def save_animation(anim):
     
     output_folderpath = os.path.join(league_folderpath, 'video_output')
     if not os.path.exists(output_folderpath):
-        os.makedirs(output_folderpath)
-    
+        os.makedirs(output_folderpath)    
+    # anim.save(os.path.join(output_folderpath,f"out-{timestring}.gif"))
     anim.save(os.path.join(output_folderpath,f"out-{timestring}.mp4"), writer=ffWriter)
     print(f'Video saved to {output_folderpath}')
 
@@ -209,7 +214,6 @@ if __name__ == '__main__':
         else:
             pos_by_round.append(positions(scores_through_round, start_pos=pos_by_round[-1]))
 
-    anim = make_animation(pos_by_round[:3], points_by_round[:3])
+    anim = make_animation(pos_by_round, points_by_round)
     save_animation(anim)
     # plt.show()
-
