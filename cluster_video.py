@@ -80,8 +80,8 @@ def make_animation(pos_by_round, points_by_round):
     max_y = max(y for _, y in all_values)
     range_x = max_x - min_x
     range_y = max_y - min_y
-    ax.set_xlim(min_x - range_x * 0.08, max_x + range_x * 0.08)
-    ax.set_ylim(min_y - range_y * 0.08, max_y + range_y * 0.08)
+    ax.set_xlim(min_x - range_x * 0.15, max_x + range_x * 0.15)
+    ax.set_ylim(min_y - range_y * 0.15, max_y + range_y * 0.15)
 
     x_array = []
     y_array = []
@@ -180,6 +180,9 @@ def make_animation(pos_by_round, points_by_round):
         sc.set_sizes(new_sizes)
         for i, color in enumerate(colors):
             sc._facecolors[i] = plt.cm.colors.to_rgba(color)
+            # set alpha to 0.5 again
+            sc._facecolors[i][3] = 0.5
+
 
         sc.set_offsets(list(zip(x_array, y_array)))
         return sc
