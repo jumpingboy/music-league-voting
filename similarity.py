@@ -1,12 +1,12 @@
 import json
 from pprint import pprint
 import pdb
+import os
+import csv
 
 import numpy as np
 from jinja2 import Template
-import os
-import os
-import json
+
 
 default_league_json_path = os.path.join('leagues','default_league_info.json')
 if os.path.exists(default_league_json_path):
@@ -22,36 +22,49 @@ else:
     else:
         league_folderpath = os.path.join('leagues', league_folders[0])
 
-
-def calc_similarity_scores(results):
-    members_json_path = os.path.join(league_folderpath, 'members.json')
     
-    with open(members_json_path) as f:
-        members = json.load(f)
+def parse_csv(csv_path):
+    def variablify(string):
+        return string.lower().replace(' ', '_')
+    with open(csv_path) as f:
+        return [{variablify(k): v for k, v in row.items()} for row in csv.DictReader(f, skipinitialspace=True)]
 
+members_csv_path = os.path.join(league_folderpath, 'competitors.csv')
+members = parse_csv(members_csv_path)
+members_by_id = {member['id']: member['name'] for member in members}
+
+name_map = None
+name_map_json_path = os.path.join(league_folderpath, 'name_map.json')
+if os.path.exists(name_map_json_path):
+    with open(name_map_json_path, 'r') as f:
+        name_map = json.loads(f.read())
+
+    for member_id, member_name in members_by_id.items():
+        if member_name in name_map.keys():
+            members_by_id[member_id] = name_map[member_name]
+
+rounds_csv_path = os.path.join(league_folderpath, 'rounds.csv')
+rounds = parse_csv(rounds_csv_path)
+round_order_by_id = {}
+for round_num, round_data in enumerate(rounds, 1):
+    round_order_by_id[round_data['id']] = round_num
+
+submissions_csv_path = os.path.join(league_folderpath, 'submissions.csv')
+submissions = parse_csv(submissions_csv_path)
+submitter_id_by_spotify_uri = {submission['spotify_uri']: submission['submitter_id'] for submission in submissions}
+submission_by_spotify_uri = {submission['spotify_uri']: submission for submission in submissions}
+
+league_settings = os.path.join(league_folderpath, 'league_settings.json')
+with open(league_settings) as f:
+    settings = json.loads(f.read())
+
+
+def calc_similarity_scores(results):    
     scores = {}
-    member_ids = [member['user']['id'] for member in members]
-    member_name_lookup = {member['user']['id']: member['user']['name'] for member in members}
-
-    name_map = None
-    name_map_json_path = os.path.join(league_folderpath, 'name_map.json')
-    if os.path.exists(name_map_json_path):
-        with open(name_map_json_path, 'r') as f:
-            name_map = json.loads(f.read())
-
-        for member_id, member_name in member_name_lookup.items():
-            if member_name in name_map.keys():
-                member_name_lookup[member_id] = name_map[member_name]
-
-    track_lookup = None
-    tracks_json_path = os.path.join(league_folderpath, 'tracks.json')
-    if os.path.exists(tracks_json_path):
-        with open(tracks_json_path) as f:
-            track_lookup = json.load(f)
-    for member in members:
-        this_member_id = member['user']['id']
+    
+    for this_member_id in members_by_id:
         this_member_scores = {}
-        other_member_ids = [id for id in member_ids if id != this_member_id]
+        other_member_ids = [id for id in members_by_id.keys() if id != this_member_id]
         for other_member_id in other_member_ids:
             if other_member_id in scores.keys():
                 this_member_scores[other_member_id] = scores[other_member_id][this_member_id]
@@ -61,17 +74,17 @@ def calc_similarity_scores(results):
 
             for song in results:
                 def parse_vote_stats_for_song(this_member_id, other_member_id, song):
-                    votes_by_id = {vote['voterId']: vote['weight'] for vote in song['votes'] if vote['weight'] != 0}
+                    votes_by_id = {vote['voter_id']: int(vote['points_assigned']) for vote in song['votes'] if int(vote['points_assigned']) != 0}
                     song_match = {}
-                    submitter_id = song['submission']['submitterId']
+                    submitter_id = submitter_id_by_spotify_uri[song['spotify_uri']]
                     this_member_voted = this_member_id in votes_by_id.keys()
                     this_member_vote = votes_by_id[this_member_id] if this_member_voted else 0
                     other_member_voted = other_member_id in votes_by_id.keys()
                     other_member_vote = votes_by_id[other_member_id] if other_member_voted else 0
-                    crowd_votes = [vote['weight'] for vote in song['votes'] if vote['voterId'] not in [this_member_id, other_member_id]]
+                    crowd_votes = [int(vote['points_assigned']) for vote in song['votes'] if vote['voter_id'] not in [this_member_id, other_member_id]]
                     
                     def crowd_rms(crowd_votes, pair_votes):
-                        crowd_ignorers_count = len(member_ids) - 2 - len(crowd_votes)
+                        crowd_ignorers_count = len(members_by_id) - 2 - len(crowd_votes)
                         if len(pair_votes) == 1:
                             crowd_ignorers_count += 1
                         crowd_votes += [0] * crowd_ignorers_count
@@ -80,11 +93,11 @@ def calc_similarity_scores(results):
                     
                     if submitter_id == this_member_id:
                         song_match['type'] = 'submitter'
-                        song_match['weight'] = other_member_vote
+                        song_match['points_assigned'] = other_member_vote
                         song_match['crowd_vote_rms'] = crowd_rms(crowd_votes, [other_member_vote])
                     elif submitter_id == other_member_id:
                         song_match['type'] = 'submitter'
-                        song_match['weight'] = this_member_vote
+                        song_match['points_assigned'] = this_member_vote
                         song_match['crowd_vote_rms'] = crowd_rms(crowd_votes, [this_member_vote])
                     else:
                         this_member_upvoted = this_member_vote > 0
@@ -94,22 +107,21 @@ def calc_similarity_scores(results):
                         if this_member_voted and other_member_voted:
                             if this_member_upvoted and other_member_upvoted:
                                 song_match['type'] = 'both_up'
-                                song_match['weight'] = votes_by_id[this_member_id] + votes_by_id[other_member_id]
+                                song_match['points_assigned'] = votes_by_id[this_member_id] + votes_by_id[other_member_id]
                                 song_match['diff'] = abs(votes_by_id[this_member_id] - votes_by_id[other_member_id])
                             elif not this_member_upvoted and not other_member_upvoted:
                                 song_match['type'] = 'both_down'
-                                song_match['weight'] = -1
+                                song_match['points_assigned'] = -1
                             else:
                                 song_match['type'] = 'up_down'
-                                song_match['weight'] = abs(votes_by_id[this_member_id] - votes_by_id[other_member_id])
+                                song_match['points_assigned'] = abs(votes_by_id[this_member_id] - votes_by_id[other_member_id])
                         elif not this_member_voted and not other_member_voted:
                             song_match['type'] = 'both_ignore'
-                            song_match['weight'] = 0
+                            song_match['points_assigned'] = 0
                         else:
                             song_match['type'] = 'in_out'
-                            song_match['weight'] = votes_by_id[this_member_id] if this_member_voted else votes_by_id[other_member_id]
-                    if track_lookup:
-                        song_match['song_info'] = track_lookup[song['submission']['spotifyUri']]
+                            song_match['points_assigned'] = votes_by_id[this_member_id] if this_member_voted else votes_by_id[other_member_id]
+                    song_match['song_info'] = submission_by_spotify_uri[song['spotify_uri']]
                     return song_match
                 
                 song_vote_stats = parse_vote_stats_for_song(this_member_id, other_member_id, song)
@@ -127,39 +139,40 @@ def calc_similarity_scores(results):
                 continue
             def score_vote(vote):
                 vote_score = 0
-                # weight 1 to 10
+                # points_assigned will range from 1 to total_upvotes
                 against_the_crowd_bonus = vote['crowd_vote_rms']
-                if vote['type'] == 'submitter' and vote['weight'] > 0:
-                    vote_score += np.sqrt(vote['weight'] - 1) * 1.2 + 3 + against_the_crowd_bonus
-                # weight 1 to 10
+                if vote['type'] == 'submitter' and vote['points_assigned'] > 0:
+                    vote_score += np.sqrt(vote['points_assigned'] - 1) * 1.2 + 3 + against_the_crowd_bonus
+                # points_assigned will range from 1 to total_upvotes
                 elif vote['type'] == 'both_up':
-                    vote_score += np.sqrt(vote['weight'] - 1 - vote['diff']/1.5) * 1.4 + 2 + against_the_crowd_bonus
+                    vote_score += np.sqrt(vote['points_assigned'] - 1 - vote['diff']/1.5) * 1.4 + 2 + against_the_crowd_bonus
                 elif vote['type'] == 'both_down':
                     vote_score += 5 + (against_the_crowd_bonus/3)
                 elif vote['type'] == 'both_ignore':
                     vote_score += 1 + against_the_crowd_bonus
 
-                elif vote['type'] == 'submitter' and vote['weight'] == 0:
+                elif vote['type'] == 'submitter' and vote['points_assigned'] == 0:
                     vote_score += -2
-                elif vote['type'] == 'submitter' and vote['weight'] < 0:
+                elif vote['type'] == 'submitter' and vote['points_assigned'] < 0:
                     vote_score += -5
-                # weight 2 to 11
+                # points_assigned will range from 2 to max_upvotes_per_track + max_downvotes_per_track (because in an up_down scenario at a minimum there is 1 downvote and 1 upvote, for a total size of 2)
                 elif vote['type'] == 'up_down':
-                    vote_score += np.sqrt(vote['weight'] - 1) * -1.4 - 3
+                    vote_score += np.sqrt(vote['points_assigned'] - 1) * -1.4 - 3
 
                 elif vote['type'] == 'in_out':
-                    if vote['weight'] < 1:
+                    if vote['points_assigned'] < 1:
                         vote_score += -1
                     else:
-                        vote_score += np.sqrt(vote['weight'] - 1) * -1.2 - 1
+                        vote_score += np.sqrt(vote['points_assigned'] - 1) * -1.2 - 1
                 vote['score'] = round(vote_score,1)
                 return vote
             
             total_score = 0
             breakdown = []
+
             for vote in other_member_scores:
                 scored_vote = score_vote(vote)
-                song_string = f"{vote['song_info']['title']} | {vote['song_info']['artist']}"
+                song_string = f"{vote['song_info']['title']} | {vote['song_info']['artist(s)']}"
                 breakdown.append({'song': song_string, 'score': scored_vote['score'], 'against_the_crowd_bonus': scored_vote['crowd_vote_rms'] if scored_vote['score'] > 0 else 0, 'type': scored_vote['type']})
                 total_score += scored_vote['score']
 
@@ -170,9 +183,9 @@ def calc_similarity_scores(results):
 
     similarity_scores_by_name = {}
     for member_id, member_scores in similarity_scores.items():
-        similarity_scores_by_name[member_name_lookup[member_id]] = {}
+        similarity_scores_by_name[members_by_id[member_id]] = {}
         for other_member_id, other_member_score in member_scores.items():
-            similarity_scores_by_name[member_name_lookup[member_id]][member_name_lookup[other_member_id]] = other_member_score
+            similarity_scores_by_name[members_by_id[member_id]][members_by_id[other_member_id]] = other_member_score
 
 
     sorted_by_score = {}
@@ -183,7 +196,7 @@ def calc_similarity_scores(results):
     return sorted_by_score
 
 
-def top_songs_for_pair(member_a, member_b, round=None):
+def top_songs_for_pair(member_a, member_b):
     print(member_a, member_b)
     cumulative, last_round = cumulative_and_last_round_scores()
     print('\n Last round')
@@ -201,17 +214,23 @@ def top_songs_for_pair(member_a, member_b, round=None):
 
 
 def votes_by_round_array():
-    result_files = os.listdir(f'{league_folderpath}/results')
+    votes_csv_path = os.path.join(league_folderpath, 'votes.csv')
+    raw_votes = parse_csv(votes_csv_path)
 
-    result_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+    votes_by_round_id = {round_id: {} for round_id in round_order_by_id.keys()}
+    round_of_votes = {}
+    for vote in raw_votes:
+        if vote['spotify_uri'] not in votes_by_round_id[vote['round_id']]:
+            votes_by_round_id[vote['round_id']][vote['spotify_uri']] = []
+        votes_by_round_id[vote['round_id']][vote['spotify_uri']].append(vote)
 
-
-    votes_by_round = []
-    for file in result_files:
-        with open(os.path.join(f'{league_folderpath}/results', file)) as f:
-            results = json.load(f)['standings']
-
-            votes_by_round.append(results)
+    votes_by_round = [[]]*len(round_order_by_id)
+    
+    for round_id, round_of_votes in votes_by_round_id.items():
+        reformat = []
+        for uri, votes in round_of_votes.items():
+            reformat.append({'spotify_uri': uri, 'votes': votes})
+        votes_by_round[round_order_by_id[round_id] - 1] = reformat
 
     return votes_by_round
 
