@@ -36,7 +36,9 @@ def positions(similarity_scores, start_pos=None):
 
     for member_name, member_scores in similarity_scores.items():
         for score_dict in member_scores:
-            optimal_distance = round((-1 * (score_dict['score'] - min_score + 0.1)) + score_range + 2.1, 2)
+            alpha = (score_dict['score'] - min_score) / score_range
+            # We pad the highest scores a bit so that the two players with the highest similarity score are not aiming for a distance of 0, which would put them right on top of each other in the graph.
+            optimal_distance = max(round((1-alpha) * score_range, 2), score_range * 0.08)
             G.add_edge(member_name, score_dict['name'], weight=optimal_distance)
 
     pos = nx.kamada_kawai_layout(G, dim=2, pos=start_pos)
@@ -83,7 +85,7 @@ def make_animation(pos_by_round):
     for node_name, (x, y) in pos_by_round[0].items():
         x_array.append(x)
         y_array.append(y)
-        text_artists[node_name] = ax.text(x, y, node_name, color='black', fontsize=24, ha='center', va='center')
+        text_artists[node_name] = ax.text(x, y, node_name, color='black', fontsize=20, ha='center', va='center')
 
     node_color = '#6fd7f8'
     ax.axis('off')

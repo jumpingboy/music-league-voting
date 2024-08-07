@@ -199,18 +199,18 @@ def calc_similarity_scores(results):
 def top_songs_for_pair(member_a, member_b):
     print(member_a, member_b)
     cumulative, last_round = cumulative_and_last_round_scores()
-    print('\n Last round')
+    print('\nLast round')
     for member in last_round[member_a]:
         if member['name'] == member_b:
             print(member['score'], 'Total score')
             for song in member['breakdown']:
-                print(song['score'], song['type'], song['song'], song['against_the_crowd_bonus'] if song['score'] > 0 else 0)
-    print('Cumulative')
+                print(song['score'], song['type'], song['song'], round(song['against_the_crowd_bonus'],2) if song['score'] > 0 else 0)
+    print('\nCumulative')
     for member in cumulative[member_a]:
         if member['name'] == member_b:
             print(member['score'], 'Total score')
             for song in member['breakdown'][:10]:
-                print(song['score'], song['type'], song['song'], song['against_the_crowd_bonus'] if song['score'] > 0 else 0)
+                print(song['score'], song['type'], song['song'], round(song['against_the_crowd_bonus'],2) if song['score'] > 0 else 0)
 
 
 def votes_by_round_array():
